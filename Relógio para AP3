@@ -1,0 +1,269 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, Pressable, TouchableOpacity, StatusBar } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+
+export default function App() {
+  const [gameState, setGameState] = useState('idle');
+  const [targetTime, setTargetTime] = useState(0);
+  const [elapsedTime, setElapsedTime] = useState(0); 
+  const [displayTime, setDisplayTime] = useState(0); 
+  const [points, setPoints] = useState(0);
+  const [highScore, setHighScore] = useState(0);
+  const [lastDiff, setLastDiff] = useState(0);
+  const [earned, setEarned] = useState(0);
+  
+  const [isTimerVisible, setIsTimerVisible] = useState(false);
+  const startTimeRef = useRef(0);
+
+  const generateNewTarget = () => {
+    const randomCentiseconds = Math.floor(Math.random() * 900) + 100;
+    return randomCentiseconds * 10;
+  };
+
+  useEffect(() => {
+    setTargetTime(generateNewTarget());
+  }, []);
+
+  useEffect(() => {
+    let interval;
+    if (gameState === 'running' && isTimerVisible) {
+      interval = setInterval(() => {
+        setDisplayTime(Date.now() - startTimeRef.current);
+      }, 10); 
+    }
+    return () => clearInterval(interval); 
+  }, [gameState, isTimerVisible]);
+
+  const formatTime = (ms) => {
+    const seconds = Math.floor(ms / 1000);
+    const centiseconds = Math.floor((ms % 1000) / 10);
+    return `${seconds.toString().padStart(2, '0')}:${centiseconds.toString().padStart(2, '0')}`;
+  };
+
+  const handleAction = () => {
+    if (gameState === 'idle') {
+      setGameState('running');
+      startTimeRef.current = Date.now();
+      setDisplayTime(0);
+    } else if (gameState === 'running') {
+      const endTime = Date.now();
+      const elapsed = endTime - startTimeRef.current;
+      
+      setElapsedTime(elapsed);
+      setDisplayTime(elapsed); 
+
+      const targetDisplayValue = Math.floor(targetTime / 10);
+      const elapsedDisplayValue = Math.floor(elapsed / 10);
+      
+      const visualDiff = Math.abs(elapsedDisplayValue - targetDisplayValue);
+      setLastDiff(visualDiff);
+
+      if (visualDiff < 10) { 
+        const earnedPoints = 10 - visualDiff;
+        
+        setEarned(earnedPoints);
+        const newTotal = points + earnedPoints;
+        setPoints(newTotal);
+        
+        if (newTotal > highScore) {
+          setHighScore(newTotal);
+        }
+      } else { 
+        setEarned(0);
+        setPoints(0);
+      }
+
+      setGameState('result');
+    } else if (gameState === 'result') {
+      setTargetTime(generateNewTarget());
+      setElapsedTime(0);
+      setDisplayTime(0);
+      setGameState('idle');
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+      
+      {/* Cabeçalho de Pontuação */}
+      <View style={styles.header}>
+        <View style={styles.scoreBoard}>
+          <View style={styles.scoreCard}>
+            <Text style={styles.scoreLabel}>RECORDE</Text>
+            <Text style={styles.scoreValue}>{highScore}</Text>
+          </View>
+          <View style={styles.scoreCard}>
+            <Text style={styles.scoreLabel}>PONTOS</Text>
+            <Text style={styles.scoreValue}>{points}</Text>
+          </View>
+        </View>
+        
+        <TouchableOpacity 
+          style={styles.eyeButton} 
+          onPress={() => setIsTimerVisible(!isTimerVisible)}
+          activeOpacity={0.7}
+        >
+          <Ionicons 
+            name={isTimerVisible ? "eye" : "eye-off"} 
+            size={28} 
+            color={isTimerVisible ? "#00E676" : "#757575"} 
+          />
+        </TouchableOpacity>
+      </View>
+
+      {/* Área Central do Jogo */}
+      <View style={styles.gameArea}>
+        <Text style={styles.label}>ALVO</Text>
+        <Text style={styles.targetText}>
+          {formatTime(targetTime)}
+        </Text>
+
+        <View style={styles.timerContainer}>
+          <Text style={styles.timer}>
+            {gameState === 'running' 
+              ? (isTimerVisible ? formatTime(displayTime) : '--:--') 
+              : formatTime(elapsedTime)}
+          </Text>
+        </View>
+
+        {/* Feedback visual */}
+        <View style={styles.feedbackContainer}>
+          {gameState === 'result' && (
+            <View style={[styles.feedbackBadge, lastDiff < 10 ? styles.badgeWin : styles.badgeLose]}>
+              <Text style={styles.feedbackText}>
+                {lastDiff < 10 ? `+${earned} PONTOS` : 'PERDEU!'}
+              </Text>
+              <Text style={styles.diffText}>
+                ERRO: {lastDiff}
+              </Text>
+            </View>
+          )}
+        </View>
+      </View>
+
+      {/* Botão Vermelho 3D Clássico */}
+      <Pressable onPress={handleAction}>
+        {({ pressed }) => (
+          <View style={styles.buttonOuter}>
+            <View style={[styles.buttonInner, pressed && styles.buttonInnerPressed]}>
+              <Text style={styles.buttonText}>
+                {gameState === 'idle' ? 'COMEÇAR' : 
+                 gameState === 'running' ? 'PARAR' : 
+                 'PRÓXIMO'}
+              </Text>
+            </View>
+          </View>
+        )}
+      </Pressable>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { 
+    flex: 1, 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    backgroundColor: '#1E1E24', // Fundo escuro casual
+    paddingVertical: 60,
+  },
+  
+  // Header e Placar
+  header: { 
+    flexDirection: 'row', 
+    width: '90%', 
+    justifyContent: 'space-between', 
+    alignItems: 'center' 
+  },
+  scoreBoard: { 
+    flexDirection: 'row', 
+    gap: 10 
+  },
+  scoreCard: { 
+    backgroundColor: '#2B2D42', 
+    paddingVertical: 8, 
+    paddingHorizontal: 15, 
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#3D405B'
+  },
+  scoreLabel: { fontSize: 10, color: '#8D99AE', fontWeight: 'bold', letterSpacing: 1 },
+  scoreValue: { fontSize: 18, fontWeight: '900', color: '#FFF' },
+  
+  // Botão do Olho
+  eyeButton: { 
+    backgroundColor: '#2B2D42', 
+    padding: 12, 
+    borderRadius: 50,
+    borderWidth: 1,
+    borderColor: '#3D405B'
+  },
+
+  // Textos do Jogo
+  gameArea: { 
+    alignItems: 'center',
+    width: '100%',
+    flex: 1,
+    justifyContent: 'center'
+  },
+  label: { fontSize: 16, color: '#8D99AE', fontWeight: 'bold', letterSpacing: 2, marginBottom: 5 },
+  targetText: { fontSize: 60, fontWeight: '900', color: '#00F0FF', marginBottom: 20 }, // Ciano Neon
+  
+  timerContainer: {
+    backgroundColor: '#121215',
+    paddingVertical: 15,
+    paddingHorizontal: 30,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#2B2D42',
+    marginBottom: 30,
+    minWidth: 220,
+    alignItems: 'center'
+  },
+  timer: { fontSize: 45, fontWeight: 'bold', color: '#FFF', fontFamily: 'monospace' },
+  
+  // Feedback (Ganhou/Perdeu)
+  feedbackContainer: { height: 80, alignItems: 'center', justifyContent: 'center' },
+  feedbackBadge: { 
+    paddingVertical: 10, 
+    paddingHorizontal: 25, 
+    borderRadius: 15,
+    alignItems: 'center'
+  },
+  badgeWin: { backgroundColor: 'rgba(0, 230, 118, 0.15)', borderWidth: 1, borderColor: '#00E676' },
+  badgeLose: { backgroundColor: 'rgba(255, 61, 0, 0.15)', borderWidth: 1, borderColor: '#FF3D00' },
+  feedbackText: { fontSize: 20, fontWeight: '900', color: '#FFF' },
+  diffText: { fontSize: 14, color: '#FFF', marginTop: 2, opacity: 0.8 },
+
+  // O Botão Vermelho 3D
+  buttonOuter: {
+    backgroundColor: '#8B0000', // A base do botão (Vermelho escuro)
+    borderRadius: 100,
+    width: 240,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    marginBottom: 40,
+  },
+  buttonInner: {
+    backgroundColor: '#FF3333', // A face do botão (Vermelho vivo)
+    borderRadius: 100,
+    paddingVertical: 25,
+    alignItems: 'center',
+    transform: [{ translateY: -8 }], // Levanta a face para mostrar a base escura
+  },
+  buttonInnerPressed: {
+    transform: [{ translateY: -2 }], // Afunda o botão quando pressionado
+    backgroundColor: '#FF1A1A',
+  },
+  buttonText: { 
+    color: '#FFF', 
+    fontSize: 26, 
+    fontWeight: '900', 
+    letterSpacing: 2,
+  }
+});
